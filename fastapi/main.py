@@ -7,6 +7,8 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 import joblib
 import numpy as np
 import pandas as pd
+import time
+import os
 
 app = FastAPI()
 
@@ -48,7 +50,7 @@ async def root():
 async def hello():
     return {'res': 'pong', 'version': __version__, "time": time()}
 
-@app.post('/predict')
+@app.post('/predict/knn')
 async def predict(request: Request):
     # Get the input data from the request
     json = await request.json()
@@ -77,4 +79,50 @@ async def predict(request: Request):
     prediction = model_knn.predict(preprocessed_data)
 
     # Return the prediction
-    return {'prediction': prediction.tolist()}
+    return {'message': 'Predict success', 'prediction': prediction.tolist()}
+
+@app.post('/predict/knn/csv')
+async def predict_csv(request: Request):
+    # Get the uploaded file from the request
+    file = await request.form()
+    csv_file = file['dataset'].file
+
+    # Read the CSV file into a DataFrame
+    df = pd.read_csv(csv_file)
+
+    # Preprocess the categorical features
+    df['gender'] = df['gender'].map({'Female': 0, 'Male': 1, 'Other': 2})
+    df['smoking_history'] = df['smoking_history'].map({'never': 0, 'No Info': 1, 'current': 2, 'former':3, 'ever': 4, 'not current': 5})
+
+    # Preprocess the numerical features
+    desired_columns = [
+        "age",
+        "hypertension",
+        "heart_disease",
+        "bmi",
+        "HbA1c_level",
+        "blood_glucose_level",
+        "gender",
+        "smoking_history"
+    ]
+
+    df_reindex = df.reindex(columns=desired_columns)
+    preprocessed_data = scaler.transform(df_reindex)
+
+    # Make the prediction
+    prediction = model_knn.predict(preprocessed_data)
+
+    # Add the prediction column to the DataFrame
+    df['stroke_prediction'] = prediction
+
+    # Generate a unique filename based on timestamp
+    timestamp = str(int(time.time()))
+    filename = f"prediction_{timestamp}.csv"
+
+    # Save the DataFrame as a CSV file
+    current_dir = os.getcwd()
+    save_path = f"{current_dir}/static/predict/{filename}"
+    df.to_csv(save_path, index=False)
+
+    # Return the URL of the saved file
+    return {'message': 'Predict success', 'csv_url': f"/static/predict/{filename}"}
