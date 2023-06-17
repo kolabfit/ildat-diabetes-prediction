@@ -17,9 +17,12 @@ app.mount("/model", StaticFiles(directory="../model"), name="model")
 
 # Load the trained model
 model_knn = joblib.load('../model/knn_diabetes_prediction.pkl')
+# model_svm = joblib.load('../model/classifier_svm.pkl')
+# model_neural_network = joblib.load('../model/MLP_diabetes_prediction.pkl')
 
 # Load the scaler and encoder used for preprocessing
 scaler = joblib.load('../model/scaler.pkl')
+imputer = joblib.load('../model/imputer.pkl')
 
 
 html = f"""
@@ -36,7 +39,7 @@ html = f"""
                 <li><a href="/docs">/docs</a></li>
                 <li><a href="/redoc">/redoc</a></li>
             </ul>
-            <p>Powered by <a href="https://vercel.com" target="_blank">Vercel</a></p>
+            <p>Develop with passion by <a href="https://www.instagram.com/andrijunaedi_/" target="_blank">Andri Junaedi</a></p>
         </div>
     </body>
 </html>
@@ -45,10 +48,6 @@ html = f"""
 @app.get("/")
 async def root():
     return HTMLResponse(html)
-
-@app.get('/ping')
-async def hello():
-    return {'res': 'pong', 'version': __version__, "time": time()}
 
 @app.post('/predict/knn')
 async def predict(request: Request):
@@ -72,8 +71,11 @@ async def predict(request: Request):
         "smoking_history"
     ]
 
-    df_reindex = df.reindex(columns=desired_columns)
-    preprocessed_data = scaler.transform(df_reindex)
+    X = df.reindex(columns=desired_columns)
+    imputed_data = imputer.fit_transform(X)
+
+    scaler.fit(imputed_data)
+    preprocessed_data = scaler.transform(imputed_data)
 
     # Make the prediction
     prediction = model_knn.predict(preprocessed_data)
@@ -82,7 +84,7 @@ async def predict(request: Request):
     return {'message': 'Predict success', 'prediction': prediction.tolist()}
 
 @app.post('/predict/knn/csv')
-async def predict_csv(request: Request):
+async def predict_knn(request: Request):
     # Get the uploaded file from the request
     file = await request.form()
     csv_file = file['dataset'].file
@@ -107,7 +109,10 @@ async def predict_csv(request: Request):
     ]
 
     df_reindex = df.reindex(columns=desired_columns)
-    preprocessed_data = scaler.transform(df_reindex)
+    imputed_data = imputer.fit_transform(df_reindex)
+
+    scaler.fit(imputed_data)
+    preprocessed_data = scaler.transform(imputed_data)
 
     # Make the prediction
     prediction = model_knn.predict(preprocessed_data)
